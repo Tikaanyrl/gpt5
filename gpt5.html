@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FlashForge SRS — one-file, offline flashcards</title>
+<style>
+  :root {
+    --bg: #0f1220;
+    --fg: #e9eef7;
+    --muted: #a9b3c3;
+    --card: #171b2e;
+    --accent: #6be0ff;
+    --accent2: #8cff9b;
+    --danger: #ff7575;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial;
+    color: var(--fg); background: radial-gradient(1200px 600px at 80% -10%, #1b2241 0%, #0f1220 50%) fixed, var(--bg);
+  }
+  header {
+    padding: 18px 16px; border-bottom: 1px solid #232742; backdrop-filter: blur(4px); position: sticky; top:0; z-index: 2;
+  }
+  h1 { margin: 0 0 6px 0; font-size: 20px; letter-spacing: 0.3px; }
+  .sub { color: var(--muted); font-size: 12px; }
+  main { max-width: 1000px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
+  @media (max-width: 900px){ main { grid-template-columns: 1fr; } }
+  section { background: #0f1428cc; border: 1px solid #232742; border-radius: 12px; padding: 14px; }
+  h2 { margin: 2px 0 10px; font-size: 16px; color: #d5def0; }
+  label { display: block; margin-top: 10px; color: var(--muted); font-size: 12px; }
+  input[type="text"], textarea, input[type="number"] {
+    width: 100%; background: var(--card); border: 1px solid #2a3057; color: var(--fg);
+    padding: 10px; border-radius: 8px; outline: none;
+  }
+  textarea { min-height: 120px; resize: vertical; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 auto; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 8px; cursor: pointer;
+    background: #1b2241; border: 1px solid #2a3057; color: #dfe9ff; user-select: none; text-decoration: none;
+  }
+  .btn:hover { background: #222a53; }
+  .btn.primary { background: linear-gradient(135deg, #2a6cff, #6be0ff); color: #081226; border: none; font-weight: 600; }
+  .btn.ghost { background: transparent; border: 1px dashed #3a4170; color: var(--muted); }
+  .btn.danger { background: #2b1620; border: 1px solid #5a1e2d; color: #ffb3b3; }
+  .pill { padding: 4px 8px; border-radius: 999px; border: 1px solid #2a3057; color: var(--muted); font-size: 12px; }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .pill strong { color: #fff; margin-left: 6px; }
+  .review {
+    background: linear-gradient(180deg, #0f1428cc, #0a0d1f); border: 1px solid #22284d; border-radius: 12px; padding: 14px;
+  }
+  .card {
+    border: 1px solid #333a6a; background: var(--card); border-radius: 12px; padding: 16px;
+    min-height: 140px; display: grid; place-items: center; text-align: center; font-size: 18px;
+  }
+  .muted { color: var(--muted); }
+  .grid { display: grid; gap: 10px; }
+  .grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 700px){ .grid.cols-2 { grid-template-columns: 1fr; } }
+  .kbd { background: #12162b; border: 1px solid #2a3057; padding: 1px 6px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .small { font-size: 12px; color: var(--muted); }
+  .right { text-align: right; }
+  .progress {
+    height: 8px; background: #1b2140; border: 1px solid #2a3057; border-radius: 999px; overflow: hidden;
+  }
+  .bar { height: 100%; width: 0%; background: linear-gradient(90deg, #8cff9b, #6be0ff); transition: width .25s ease; }
+  footer { padding: 12px 16px; color: var(--muted); text-align: center; }
+  .hint { color: #b0f0ff; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>FlashForge SRS</h1>
+    <div class="sub">One-file, offline flashcards with cloze generation + SM‑2 scheduling. Keyboard: 1/2/3/4 grades, Space flip.</div>
+    <div class="stats">
+      <div class="pill">Total <strong id="stat-total">0</strong></div>
+      <div class="pill">Due now <strong id="stat-due">0</strong></div>
+      <div class="pill">New <strong id="stat-new">0</strong></div>
+      <div class="pill">Session studied <strong id="stat-session">0</strong></div>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <h2>Create cards</h2>
+      <div class="grid">
+        <div>
+          <label>Manual add</label>
+          <div class="grid">
+            <input id="front" type="text" placeholder="Front (question/prompt)" />
+            <input id="back" type="text" placeholder="Back (answer)" />
+            <div class="row">
+              <button id="addCard" class="btn">Add card</button>
+              <button id="reviewBtn" class="btn primary">Review now</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label>Auto-generate cloze cards from text</label>
+          <textarea id="srcText" placeholder="Paste any text here. I’ll create fill‑in‑the‑blank cards from key terms."></textarea>
+          <div class="row">
+            <div>
+              <label>How many cards</label>
+              <input id="limit" type="number" value="8" min="1" max="50">
+            </div>
+            <div>
+              <label>Min keyword length</label>
+              <input id="minlen" type="number" value="5" min="3" max="12">
+            </div>
+            <div class="right" style="flex:0 0 auto; align-self:flex-end;">
+              <button id="genBtn" class="btn">Generate & add</button>
+            </div>
+          </div>
+          <div class="small">Tip: Paste an article/notes, then review immediately. Use Export to back up your deck.</div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <button id="exportBtn" class="btn">Export JSON</button>
+        <button id="importBtn" class="btn">Import JSON</button>
+        <input id="importFile" type="file" accept="application/json" style="display:none">
+        <button id="clearBtn" class="btn danger">Clear deck</button>
+        <span class="small" style="align-self:center">Data is saved in your browser (localStorage).</span>
+      </div>
+    </section>
+
+    <section class="review">
+      <h2>Review</h2>
+      <div class="grid">
+        <div class="card" id="cardBox">
+          <div id="cardFront"></div>
+          <div id="cardBack" class="muted" style="display:none"></div>
+        </div>
+        <div class="grid">
+          <div class="row">
+            <button id="flipBtn" class="btn">Flip <span class="kbd">Space</span></button>
+            <div style="flex:1"></div>
+            <button id="grade1" class="btn">Again <span class="kbd">1</span></button>
+            <button id="grade2" class="btn">Hard <span class="kbd">2</span></button>
+            <button id="grade3" class="btn">Good <span class="kbd">3</span></button>
+            <button id="grade4" class="btn">Easy <span class="kbd">4</span></button>
+          </div>
+          <div class="progress"><div id="progBar" class="bar"></div></div>
+          <div class="small">Queue: <span id="queueNow">0</span> / <span id="queueTotal">0</span> • Next due in <span id="nextDue">–</span></div>
+          <div class="small">Pro tip: Hit 3 for “Good” if you remembered comfortably. The algorithm will space reviews optimally.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Built for you ✨ — No libraries, works fully offline. SM‑2 scheduling with ease caps, due sorting, new‑card mixing, export/import.
+  </footer>
+
+<script>
+(() => {
+  // --- Utilities ---
+  const $ = sel => document.querySelector(sel)
+  const now = () => Date.now()
+  const day = 24*60*60*1000
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x))
+  const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const shuffle = arr => { for (let i=arr.length-1;i>0;i--){ const j=(Math.random()* (i+1))|0; [arr[i],arr[j]]=[arr[j],arr[i]] } return arr }
+  const download = (name, data) => {
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([data], {type:'application/json'}))
+    a.download = name
+    a.click()
+    setTimeout(()=>URL.revokeObjectURL(a.href), 1000)
+  }
+
+  // --- Storage ---
+  const KEY = 'ffsrs-deck-v1'
+  let deck = loadDeck()
+  function loadDeck(){
+    const raw = localStorage.getItem(KEY)
+    if (raw) {
+      try { const d = JSON.parse(raw); return Array.isArray(d)? d : seedDeck() } catch { return seedDeck() }
+    }
+    return seedDeck()
+  }
+  function saveDeck(){ localStorage.setItem(KEY, JSON.stringify(deck)) }
+
+  function seedDeck(){
+    const base = Date.now()
+    const mk = (f,b,i)=>({ id: base + Math.random(), front:f, back:b, ease:2.5, interval:0, reps:0, due:0, created: now() })
+    const sample = [
+      mk('Cognitive bias: seeking info that confirms your beliefs is called ____.', 'confirmation bias'),
+      mk('Anchoring bias means initial numbers/ideas overly influence later judgments. True/False?', 'True'),
+      mk('Opportunity cost is best defined as ____.', 'the value of the best alternative you forgo'),
+      mk('Occam’s razor suggests preferring the ____ explanation that fits the facts.', 'simplest'),
+      mk('7 × 8 = ?', '56'),
+      mk('In E = m c^2, c is the ____.', 'speed of light'),
+      mk('Pythagorean theorem for right triangles: a² + b² = ____', 'c²'),
+      mk('Capital of Japan?', 'Tokyo'),
+      mk('Python: list of squares 0..9 via comprehension?', '[x*x for x in range(10)]'),
+      mk('Bias: After something happens, believing it was obvious all along is ____ bias.', 'hindsight bias'),
+    ]
+    localStorage.setItem(KEY, JSON.stringify(sample))
+    return sample
+  }
+
+  // --- Stats/UI ---
+  const statTotal = $('#stat-total')
+  const statDue = $('#stat-due')
+  const statNew = $('#stat-new')
+  const statSession = $('#stat-session')
+  const cardFront = $('#cardFront')
+  const cardBack = $('#cardBack')
+  const progBar = $('#progBar')
+  const queueNowEl = $('#queueNow')
+  const queueTotalEl = $('#queueTotal')
+  const nextDueEl = $('#nextDue')
+  let sessionStudied = 0
+
+  function updateStats(){
+    const t = deck.length
+    const n = deck.filter(c=>c.reps===0 && c.due===0).length
+    const d = deck.filter(c=>c.due && c.due <= now()).length
+    statTotal.textContent = t
+    statNew.textContent = n
+    statDue.textContent = d
+    statSession.textContent = sessionStudied
+  }
+  updateStats()
+
+  // --- Add cards ---
+  $('#addCard').addEventListener('click', () => {
+    const f = $('#front').value.trim()
+    const b = $('#back').value.trim()
+    if (!f || !b) { alert('Please fill both front and back.'); return }
+    deck.push({ id: now()+Math.random(), front:f, back:b, ease:2.5, interval:0, reps:0, due:0, created: now() })
+    saveDeck(); updateStats()
+    $('#front').value = ''; $('#back').value = ''
+  })
+
+  // --- Cloze generation ---
+  const STOP = new Set(("the of and to a in that is was he for it with as his on be at by i this had not are but from or have an they which you one we all were her would there their will when who said been no more if out so up what about than into do can time only new some could them other two may first then any my now such like our over also after even most make").split(' '))
+  function pickKeyword(sentence, minLen){
+    const words = sentence.replace(/[()"'“”‘’[```,:;—–-]/g,' ').split(/\s+/).filter(Boolean)
+    const candidates = words.filter(w=>{
+      const ww = w.toLowerCase().replace(/[^a-z0-9\-]/g,'')
+      return ww.length >= minLen && !STOP.has(ww) && !/^\d+$/.test(ww)
+    })
+    if (!candidates.length) return null
+    // Prefer the longest, then rarest by frequency in sentence.
+    candidates.sort((a,b)=> b.length - a.length || (sentence.split(new RegExp('\\b'+escapeRegExp(a)+'\\b','i')).length - sentence.split(new RegExp('\\b'+escapeRegExp(b)+'\\b','i')).length))
+    return candidates[0]
+  }
+  function maskOnce(sentence, target){
+    const rx = new RegExp('\\b'+escapeRegExp(target)+'\\b', 'i')
+    if (!rx.test(sentence)) return null
+    return sentence.replace(rx, '____')
+  }
+  function sentencesFrom(text){
+    const cleaned = text.replace(/\s+/g,' ').trim()
+    if (!cleaned) return []
+    // Split by sentence terminators while keeping them
+    const parts = cleaned.split(/(?<=[.!?])\s+/)
+    return parts.map(s=>s.trim()).filter(Boolean)
+  }
+  function genCloze(text, limit, minLen){
+    const sents = sentencesFrom(text)
+    const out = []
+    for (const s of sents){
+      if (out.length >= limit) break
+      const kw = pickKeyword(s, minLen)
+      if (!kw) continue
+      const masked = maskOnce(s, kw)
+      if (!masked) continue
+      out.push({front: masked, back: kw})
+    }
+    return out
+  }
+
+  $('#genBtn').addEventListener('click', ()=>{
+    const text = $('#srcText').value
+    const limit = clamp(parseInt($('#limit').value||'0',10), 1, 50)
+    const minlen = clamp(parseInt($('#minlen').value||'0',10), 3, 12)
+    const cards = genCloze(text, limit, minlen)
+    if (!cards.length){ alert('Couldn’t find good cloze targets. Try lowering min length or adding more text.'); return }
+    const base = now()
+    for (const c of cards){
+      deck.push({ id: base + Math.random(), front:c.front, back:c.back, ease:2.5, interval:0, reps:0, due:0, created: now() })
+    }
+    saveDeck(); updateStats()
+    alert(`Added ${cards.length} cards.`)
+  })
+
+  // --- Export/Import/Clear ---
+  $('#exportBtn').addEventListener('click', ()=>{
+    download('flashforge-deck.json', JSON.stringify(deck, null, 2))
+  })
+  $('#importBtn').addEventListener('click', ()=> $('#importFile').click())
+  $('#importFile').addEventListener('change', e=>{
+    const f = e.target.files[0]; if (!f) return
+    const r = new FileReader()
+    r.onload = () => {
+      try {
+        const data = JSON.parse(r.result)
+        if (!Array.isArray(data)) throw new Error('Invalid JSON deck.')
+        // Quick sanity normalize
+        deck = data.map(c=>({
+          id: c.id ?? now()+Math.random(),
+          front: String(c.front ?? ''),
+          back: String(c.back ?? ''),
+          ease: Number(c.ease ?? 2.5),
+          interval: Number(c.interval ?? 0),
+          reps: Number(c.reps ?? 0),
+          due: Number(c.due ?? 0),
+          created: Number(c.created ?? now())
+        })).filter(c=>c.front && c.back)
+        saveDeck(); updateStats()
+        alert('Deck imported.')
+      } catch (err){
+        alert('Import failed: ' + err.message)
+      }
+    }
+    r.readAsText(f)
+    e.target.value = ''
+  })
+  $('#clearBtn').addEventListener('click', ()=>{
+    if (!confirm('This will delete all cards in your browser. Continue?')) return
+    deck = []; saveDeck(); updateStats()
+  })
+
+  // --- Review engine (SM-2) ---
+  let queue = []
+  let idx = 0
+  let showingBack = false
+
+  function startReview(){
+    const dueNow = deck.filter(c=>c.due && c.due <= now()).sort((a,b)=>a.due-b.due).slice(0, 50)
+    const newCards = deck.filter(c=>!c.due).slice(0, 12)
+    queue = shuffle(dueNow.concat(newCards))
+    idx = 0; sessionStudied = 0; showingBack = false
+    renderCard()
+    updateStats()
+    updateQueueMeta()
+  }
+
+  function updateQueueMeta(){
+    queueTotalEl.textContent = queue.length
+    queueNowEl.textContent = Math.min(idx, queue.length)
+    const next = deck.filter(c=>c.due && c.due > now()).sort((a,b)=>a.due-b.due)[0]
+    if (!next) nextDueEl.textContent = '–'
+    else {
+      const ms = next.due - now()
+      const mins = Math.round(ms/60000)
+      if (mins < 60) nextDueEl.textContent = `${mins} min`
+      else nextDueEl.textContent = `${(mins/60).toFixed(1)} h`
+    }
+    const pct = queue.length? (idx/queue.length*100) : 0
+    progBar.style.width = pct.toFixed(1)+'%'
+  }
+
+  function renderCard(){
+    const card = queue[idx]
+    if (!card){
+      cardFront.innerHTML = '<span class="hint">No card in queue. Click “Review now” to start a session.</span>'
+      cardBack.style.display = 'none'
+      return
+    }
+    cardFront.textContent = card.front
+    cardBack.textContent = card.back
+    cardBack.style.display = showingBack ? 'block' : 'none'
+  }
+
+  function flip(){
+    showingBack = !showingBack
+    cardBack.style.display = showingBack ? 'block' : 'none'
+  }
+
+  function grade(g){
+    const card = queue[idx]
+    if (!card) return
+    // SM-2 update
+    const q = clamp(g,1,4) // map 1..4 to 0..5; we’ll treat 1=1,2=2,3=3,4=4 and convert
+    let grade = (q===1?1:q===2?2:q===3?4:5) // map to SM-2 style: again=1, hard=2, good=4, easy=5
+    if (grade < 3) {
+      card.reps = 0
+      card.interval = 1
+      card.due = now() + day
+    } else {
+      if (card.reps === 0) {
+        card.interval = 1
+      } else if (card.reps === 1) {
+        card.interval = 6
+      } else {
+        card.interval = Math.round(card.interval * card.ease)
+      }
+      card.ease = card.ease + (0.1 - (5 - grade) * (0.08 + (5 - grade) * 0.02))
+      card.ease = Math.max(1.3, card.ease)
+      card.reps += 1
+      card.due = now() + card.interval * day
+    }
+    saveDeck()
+    sessionStudied += 1
+    // If failed (Again/Hard), show it again later in session
+    if (g <= 2) {
+      // insert near-future position
+      const insertAt = Math.min(queue.length, idx + 3 + Math.floor(Math.random()*3))
+      queue.splice(insertAt, 0, card)
+    }
+    idx += 1
+    showingBack = false
+    updateStats()
+    updateQueueMeta()
+    renderCard()
+  }
+
+  // --- Controls ---
+  $('#reviewBtn').addEventListener('click', startReview)
+  $('#flipBtn').addEventListener('click', flip)
+  $('#grade1').addEventListener('click', ()=>grade(1))
+  $('#grade2').addEventListener('click', ()=>grade(2))
+  $('#grade3').addEventListener('click', ()=>grade(3))
+  $('#grade4').addEventListener('click', ()=>grade(4))
+
+  document.addEventListener('keydown', (e)=>{
+    if (['INPUT','TEXTAREA'].includes(e.target.tagName)) return
+    if (e.code === 'Space'){ e.preventDefault(); flip(); return }
+    if (e.key === '1') return grade(1)
+    if (e.key === '2') return grade(2)
+    if (e.key === '3') return grade(3)
+    if (e.key === '4') return grade(4)
+  })
+
+  // Initial render
+  renderCard()
+})();
+</script>
+</body>
+</html>
