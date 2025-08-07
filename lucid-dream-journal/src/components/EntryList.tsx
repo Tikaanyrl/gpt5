@@ -57,10 +57,6 @@ export default function EntryList({ entries, onUpdate, onDelete }: Props) {
     setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
   }
 
-  if (!entries.length) {
-    return <div className="card">No entries yet. Add your first dream above.</div>;
-  }
-
   // Group by date with per-night header showing deduped sleep/WBTB
   const grouped = useMemo(() => {
     const map = new Map<string, DreamEntryDTO[]>();
@@ -81,7 +77,7 @@ export default function EntryList({ entries, onUpdate, onDelete }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="card flex flex-wrap gap-3 items-center">
+      <div className="card sticky-toolbar flex flex-wrap gap-3 items-center">
         <span className="text-sm text-neutral-500">Sort by:</span>
         <div className="flex flex-wrap gap-2">
           {(
@@ -117,105 +113,109 @@ export default function EntryList({ entries, onUpdate, onDelete }: Props) {
         </div>
       </div>
 
-      {groupByNight
-        ? grouped.map((g) => (
-            <div key={g.date} className="card">
-              <div className="flex items-center justify-between mb-3">
-                <div className="font-medium">{g.date}</div>
-                <div className="text-sm text-neutral-500">Sleep: {g.sleep} h • WBTB: {g.wbtb}</div>
-              </div>
-              <div className="space-y-3">
-                {g.entries.map((e) => (
-                  <div key={e._id ?? `${e.date}-${Math.random()}`} className="rounded-md border border-border p-3">
-                    {editingId === e._id ? (
-                      <EntryForm
-                        initial={e}
-                        submitLabel="Update entry"
-                        onSubmit={async (data) => {
-                          if (!e._id) return;
-                          await onUpdate(e._id, data);
-                          setEditingId(null);
-                        }}
-                      />
-                    ) : (
-                      <div className="grid gap-2">
-                        <div className="flex items-center justify-between">
-                          <div className="font-medium">
-                            {e.tags && e.tags.length > 0 && (
-                              <span className="text-xs text-neutral-500">#{e.tags.join(' #')}</span>
-                            )}
-                          </div>
-                          <div className="flex gap-2">
-                            {e._id && (
-                              <button className="btn-outline" onClick={() => setEditingId(e._id!)}>
-                                <Pencil size={16} /> Edit
-                              </button>
-                            )}
-                            {e._id && (
-                              <button className="btn-outline" onClick={() => onDelete(e._id!)}>
-                                <Trash2 size={16} /> Delete
-                              </button>
-                            )}
-                          </div>
+      {sorted.length === 0 ? (
+        <div className="card">No entries yet. Add your first dream above.</div>
+      ) : groupByNight ? (
+        grouped.map((g) => (
+          <div key={g.date} className="card">
+            <div className="flex items-center justify-between mb-3">
+              <div className="font-medium">{g.date}</div>
+              <div className="text-sm text-neutral-500">Sleep: {g.sleep} h • WBTB: {g.wbtb}</div>
+            </div>
+            <div className="space-y-3">
+              {g.entries.map((e) => (
+                <div key={e._id ?? `${e.date}-${Math.random()}`} className="rounded-md border border-border p-3">
+                  {editingId === e._id ? (
+                    <EntryForm
+                      initial={e}
+                      submitLabel="Update entry"
+                      onSubmit={async (data) => {
+                        if (!e._id) return;
+                        await onUpdate(e._id, data);
+                        setEditingId(null);
+                      }}
+                    />
+                  ) : (
+                    <div className="grid gap-2">
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium">
+                          {e.tags && e.tags.length > 0 && (
+                            <span className="text-xs text-neutral-500">#{e.tags.join(' #')}</span>
+                          )}
                         </div>
-                        <div className="text-sm text-neutral-600 dark:text-neutral-300 grid md:grid-cols-2 gap-y-1">
-                          <div>Quality: {e.quality} / 10</div>
-                          <div>Lucid: {e.lucid ? `Yes (level ${e.lucidity})` : 'No'}</div>
-                          {e.techniques && e.techniques.length > 0 && <div>Techniques: {e.techniques.join(', ')}</div>}
-                          {e.notes && <p className="md:col-span-2 mt-2 whitespace-pre-wrap">{e.notes}</p>}
+                        <div className="flex gap-2">
+                          {e._id && (
+                            <button className="btn-outline" onClick={() => setEditingId(e._id!)}>
+                              <Pencil size={16} /> Edit
+                            </button>
+                          )}
+                          {e._id && (
+                            <button className="btn-outline" onClick={() => onDelete(e._id!)}>
+                              <Trash2 size={16} /> Delete
+                            </button>
+                          )}
                         </div>
                       </div>
+                      <div className="text-sm text-neutral-600 dark:text-neutral-300 grid md:grid-cols-2 gap-y-1">
+                        <div>Quality: {e.quality} / 10</div>
+                        <div>Lucid: {e.lucid ? `Yes (level ${e.lucidity})` : 'No'}</div>
+                        {e.techniques && e.techniques.length > 0 && <div>Techniques: {e.techniques.join(', ')}</div>}
+                        {e.notes && <p className="md:col-span-2 mt-2 whitespace-pre-wrap">{e.notes}</p>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      ) : (
+        sorted.map((e) => (
+          <div key={e._id ?? `${e.date}-${Math.random()}`} className="card">
+            {editingId === e._id ? (
+              <EntryForm
+                initial={e}
+                submitLabel="Update entry"
+                onSubmit={async (data) => {
+                  if (!e._id) return;
+                  await onUpdate(e._id, data);
+                  setEditingId(null);
+                }}
+              />
+            ) : (
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <div className="font-medium">
+                    {e.date}
+                    {e.tags && e.tags.length > 0 && (
+                      <span className="ml-2 text-xs text-neutral-500">#{e.tags.join(' #')}</span>
                     )}
                   </div>
-                ))}
-              </div>
-            </div>
-          ))
-        : sorted.map((e) => (
-            <div key={e._id ?? `${e.date}-${Math.random()}`} className="card">
-              {editingId === e._id ? (
-                <EntryForm
-                  initial={e}
-                  submitLabel="Update entry"
-                  onSubmit={async (data) => {
-                    if (!e._id) return;
-                    await onUpdate(e._id, data);
-                    setEditingId(null);
-                  }}
-                />
-              ) : (
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <div className="font-medium">
-                      {e.date}
-                      {e.tags && e.tags.length > 0 && (
-                        <span className="ml-2 text-xs text-neutral-500">#{e.tags.join(' #')}</span>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      {e._id && (
-                        <button className="btn-outline" onClick={() => setEditingId(e._id!)}>
-                          <Pencil size={16} /> Edit
-                        </button>
-                      )}
-                      {e._id && (
-                        <button className="btn-outline" onClick={() => onDelete(e._id!)}>
-                          <Trash2 size={16} /> Delete
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-sm text-neutral-600 dark:text-neutral-300 grid md:grid-cols-2 gap-y-1">
-                    <div>Quality: {e.quality} / 10</div>
-                    <div>Sleep: {e.sleepDurationHours} h • WBTB: {e.wbtbCount}</div>
-                    <div>Lucid: {e.lucid ? `Yes (level ${e.lucidity})` : 'No'}</div>
-                    {e.techniques && e.techniques.length > 0 && <div>Techniques: {e.techniques.join(', ')}</div>}
-                    {e.notes && <p className="md:col-span-2 mt-2 whitespace-pre-wrap">{e.notes}</p>}
+                  <div className="flex gap-2">
+                    {e._id && (
+                      <button className="btn-outline" onClick={() => setEditingId(e._id!)}>
+                        <Pencil size={16} /> Edit
+                      </button>
+                    )}
+                    {e._id && (
+                      <button className="btn-outline" onClick={() => onDelete(e._id!)}>
+                        <Trash2 size={16} /> Delete
+                      </button>
+                    )}
                   </div>
                 </div>
-              )}
-            </div>
-          ))}
+                <div className="text-sm text-neutral-600 dark:text-neutral-300 grid md:grid-cols-2 gap-y-1">
+                  <div>Quality: {e.quality} / 10</div>
+                  <div>Sleep: {e.sleepDurationHours} h • WBTB: {e.wbtbCount}</div>
+                  <div>Lucid: {e.lucid ? `Yes (level ${e.lucidity})` : 'No'}</div>
+                  {e.techniques && e.techniques.length > 0 && <div>Techniques: {e.techniques.join(', ')}</div>}
+                  {e.notes && <p className="md:col-span-2 mt-2 whitespace-pre-wrap">{e.notes}</p>}
+                </div>
+              </div>
+            )}
+          </div>
+        ))
+      )}
     </div>
   );
 }
