@@ -60,7 +60,7 @@ export default function EntryForm({ initial, onSubmit, submitLabel = 'Save entry
     } else if (selectedTechniques.length === 0 && defaults.mostRecentTechniques.length > 0) {
       setSelectedTechniques(defaults.mostRecentTechniques);
     }
-  }, [date, defaults, initial]);
+  }, [date, defaults, initial, selectedTechniques.length]);
 
   function toggleTechnique(name: string) {
     setSelectedTechniques((prev) =>
